@@ -4,6 +4,7 @@ import type { Block } from '../types/block'
 import type { Carver } from '../types/carver'
 import type { PrintBatch } from '../types/batch'
 import type { ProcessNode } from '../types/node'
+import type { WorkPointEntry } from '../types/workPoint'
 
 type StoredRecord = Record<string, unknown> & { schemaRev?: number }
 
@@ -13,6 +14,7 @@ class WoodprintDatabase extends Dexie {
   carvers!: Table<Carver, string>
   batches!: Table<PrintBatch, string>
   nodes!: Table<ProcessNode, string>
+  workPoints!: Table<WorkPointEntry, string>
 
   constructor() {
     super('gbwoodprint-db')
@@ -38,6 +40,25 @@ class WoodprintDatabase extends Dexie {
         for (const tableName of tableNames) {
           await transaction.table(tableName).toCollection().modify((record: StoredRecord) => {
             record.schemaRev = 2
+          })
+        }
+      })
+
+    this.version(3)
+      .stores({
+        drafts: 'id, genre, status, title, schemaRev',
+        blocks: 'id, draftId, colorNo, carvedBy, state, sizeTier, schemaRev',
+        carvers: 'id, specialty, skillLevel, name, schemaRev',
+        batches: 'id, draftId, batchNo, printedAt, schemaRev',
+        nodes: 'id, batchId, blockId, stage, seq, operator, schemaRev',
+        workPoints: 'id, blockId, carverId, carverName, month, status, schemaRev',
+      })
+      .upgrade(async (transaction) => {
+        const tableNames = ['drafts', 'blocks', 'carvers', 'batches', 'nodes'] as const
+        for (const tableName of tableNames) {
+          await transaction.table(tableName).toCollection().modify((record: StoredRecord) => {
+            if (tableName === 'blocks' && !record.sizeTier) record.sizeTier = '中幅'
+            record.schemaRev = 3
           })
         }
       })
@@ -84,25 +105,25 @@ const drafts: Draft[] = [
 ]
 
 const blocks: Block[] = [
-  { id: 'block-ms-01', draftId: 'draft-menshen-qin', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 18, carvedBy: '齐师傅', state: '已刻成', defectNote: '胡须末梢修补一处，不影响线条落墨。' },
-  { id: 'block-ms-02', draftId: 'draft-menshen-qin', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 20, carvedBy: '周桂枝', state: '在刻', defectNote: '甲胄边线有一处浅崩口，已做嵌补。' },
-  { id: 'block-ms-03', draftId: 'draft-menshen-qin', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 20, carvedBy: '陈小满', state: '待刻', defectNote: '' },
-  { id: 'block-ms-04', draftId: 'draft-menshen-qin', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 19, carvedBy: '秦木生', state: '待刻', defectNote: '' },
+  { id: 'block-ms-01', draftId: 'draft-menshen-qin', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 18, sizeTier: '大幅', carvedBy: '齐师傅', state: '已刻成', defectNote: '胡须末梢修补一处，不影响线条落墨。' },
+  { id: 'block-ms-02', draftId: 'draft-menshen-qin', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 20, sizeTier: '大幅', carvedBy: '周桂枝', state: '在刻', defectNote: '甲胄边线有一处浅崩口，已做嵌补。' },
+  { id: 'block-ms-03', draftId: 'draft-menshen-qin', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 20, sizeTier: '大幅', carvedBy: '陈小满', state: '待刻', defectNote: '' },
+  { id: 'block-ms-04', draftId: 'draft-menshen-qin', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 19, sizeTier: '大幅', carvedBy: '秦木生', state: '待刻', defectNote: '' },
 
-  { id: 'block-zw-01', draftId: 'draft-zaowang-siming', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 16, carvedBy: '秦木生', state: '已刻成', defectNote: '灶君衣纹清晰，无补版。' },
-  { id: 'block-zw-02', draftId: 'draft-zaowang-siming', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 18, carvedBy: '周桂枝', state: '在刻', defectNote: '供桌纹样局部跳刀，已顺线修平。' },
-  { id: 'block-zw-03', draftId: 'draft-zaowang-siming', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 18, carvedBy: '陈小满', state: '待刻', defectNote: '' },
-  { id: 'block-zw-04', draftId: 'draft-zaowang-siming', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 17, carvedBy: '秦木生', state: '待刻', defectNote: '' },
+  { id: 'block-zw-01', draftId: 'draft-zaowang-siming', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 16, sizeTier: '小幅', carvedBy: '秦木生', state: '已刻成', defectNote: '灶君衣纹清晰，无补版。' },
+  { id: 'block-zw-02', draftId: 'draft-zaowang-siming', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 18, sizeTier: '小幅', carvedBy: '周桂枝', state: '在刻', defectNote: '供桌纹样局部跳刀，已顺线修平。' },
+  { id: 'block-zw-03', draftId: 'draft-zaowang-siming', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 18, sizeTier: '小幅', carvedBy: '陈小满', state: '待刻', defectNote: '' },
+  { id: 'block-zw-04', draftId: 'draft-zaowang-siming', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 17, sizeTier: '小幅', carvedBy: '秦木生', state: '待刻', defectNote: '' },
 
-  { id: 'block-mk-01', draftId: 'draft-muke-zhai', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 17, carvedBy: '齐师傅', state: '在刻', defectNote: '旗面转折处留刀待修。' },
-  { id: 'block-mk-02', draftId: 'draft-muke-zhai', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 20, carvedBy: '周桂枝', state: '待刻', defectNote: '' },
-  { id: 'block-mk-03', draftId: 'draft-muke-zhai', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 20, carvedBy: '陈小满', state: '待刻', defectNote: '' },
-  { id: 'block-mk-04', draftId: 'draft-muke-zhai', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 19, carvedBy: '秦木生', state: '待刻', defectNote: '' },
+  { id: 'block-mk-01', draftId: 'draft-muke-zhai', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 17, sizeTier: '大幅', carvedBy: '齐师傅', state: '在刻', defectNote: '旗面转折处留刀待修。' },
+  { id: 'block-mk-02', draftId: 'draft-muke-zhai', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 20, sizeTier: '大幅', carvedBy: '周桂枝', state: '待刻', defectNote: '' },
+  { id: 'block-mk-03', draftId: 'draft-muke-zhai', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 20, sizeTier: '大幅', carvedBy: '陈小满', state: '待刻', defectNote: '' },
+  { id: 'block-mk-04', draftId: 'draft-muke-zhai', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 19, sizeTier: '大幅', carvedBy: '秦木生', state: '待刻', defectNote: '' },
 
-  { id: 'block-ll-01', draftId: 'draft-liannian-youyu', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 16, carvedBy: '齐师傅', state: '已修版', defectNote: '鱼鳞线加修一次，边缘改圆顺。' },
-  { id: 'block-ll-02', draftId: 'draft-liannian-youyu', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 18, carvedBy: '周桂枝', state: '已刻成', defectNote: '荷叶边缘有针尖小孔，不影响印面。' },
-  { id: 'block-ll-03', draftId: 'draft-liannian-youyu', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 18, carvedBy: '陈小满', state: '已刻成', defectNote: '无补版。' },
-  { id: 'block-ll-04', draftId: 'draft-liannian-youyu', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 18, carvedBy: '秦木生', state: '已刻成', defectNote: '青绿地留白平净。' },
+  { id: 'block-ll-01', draftId: 'draft-liannian-youyu', blockName: '墨线版', colorNo: 1, woodType: '黄杨', thicknessMm: 16, sizeTier: '中幅', carvedBy: '齐师傅', state: '已修版', defectNote: '鱼鳞线加修一次，边缘改圆顺。' },
+  { id: 'block-ll-02', draftId: 'draft-liannian-youyu', blockName: '黄版', colorNo: 2, woodType: '梨木', thicknessMm: 18, sizeTier: '中幅', carvedBy: '周桂枝', state: '已刻成', defectNote: '荷叶边缘有针尖小孔，不影响印面。' },
+  { id: 'block-ll-03', draftId: 'draft-liannian-youyu', blockName: '红版', colorNo: 3, woodType: '梨木', thicknessMm: 18, sizeTier: '中幅', carvedBy: '陈小满', state: '已刻成', defectNote: '无补版。' },
+  { id: 'block-ll-04', draftId: 'draft-liannian-youyu', blockName: '绿版', colorNo: 4, woodType: '梨木', thicknessMm: 18, sizeTier: '中幅', carvedBy: '秦木生', state: '已刻成', defectNote: '青绿地留白平净。' },
 ]
 
 const carvers: Carver[] = [
@@ -193,8 +214,48 @@ const nodes: ProcessNode[] = [
   { id: 'node-ll-02', blockId: 'block-ll-01', stage: '修版', seq: 2, operator: '秦木生', startedAt: '2025-12-11T14:00', durationMin: 110, note: '鱼鳞线加修，边缘改圆顺。' },
 ]
 
+function daysAgoTimestamp(days: number, time: string): string {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`
+}
+
+const workPoints: WorkPointEntry[] = [
+  { id: 'wp-ll-01', blockId: 'block-ll-01', blockName: '墨线版', draftId: 'draft-liannian-youyu', carverId: 'carver-qi', carverName: '齐师傅', skillLevel: '师傅', sizeTier: '中幅', points: 2, month: '2025-12', recordedAt: '2025-12-08T17:30', status: '有效', cancelledAt: null, cancelReason: '' },
+  { id: 'wp-ll-02', blockId: 'block-ll-02', blockName: '黄版', draftId: 'draft-liannian-youyu', carverId: 'carver-zhou', carverName: '周桂枝', skillLevel: '熟练', sizeTier: '中幅', points: 2, month: '2025-12', recordedAt: '2025-12-16T16:40', status: '有效', cancelledAt: null, cancelReason: '' },
+  { id: 'wp-ll-03', blockId: 'block-ll-03', blockName: '红版', draftId: 'draft-liannian-youyu', carverId: 'carver-chen', carverName: '陈小满', skillLevel: '学徒', sizeTier: '中幅', points: 1, month: '2025-12', recordedAt: '2025-12-22T15:10', status: '有效', cancelledAt: null, cancelReason: '' },
+  { id: 'wp-ll-04', blockId: 'block-ll-04', blockName: '绿版', draftId: 'draft-liannian-youyu', carverId: 'carver-qin', carverName: '秦木生', skillLevel: '师傅', sizeTier: '中幅', points: 2, month: '2025-12', recordedAt: '2025-12-28T11:20', status: '有效', cancelledAt: null, cancelReason: '' },
+  { id: 'wp-ms-01', blockId: 'block-ms-01', blockName: '墨线版', draftId: 'draft-menshen-qin', carverId: 'carver-qi', carverName: '齐师傅', skillLevel: '师傅', sizeTier: '大幅', points: 3, month: '2026-01', recordedAt: '2026-01-09T18:00', status: '有效', cancelledAt: null, cancelReason: '' },
+  { id: 'wp-zw-01', blockId: 'block-zw-01', blockName: '墨线版', draftId: 'draft-zaowang-siming', carverId: 'carver-qin', carverName: '秦木生', skillLevel: '师傅', sizeTier: '小幅', points: 1, month: '2026-01', recordedAt: '2026-01-15T16:30', status: '有效', cancelledAt: null, cancelReason: '' },
+]
+
+function returnedSampleEntry(): WorkPointEntry {
+  const recordedAt = daysAgoTimestamp(9, '10:20')
+  return {
+    id: 'wp-ms-02-returned',
+    blockId: 'block-ms-02',
+    blockName: '黄版',
+    draftId: 'draft-menshen-qin',
+    carverId: 'carver-zhou',
+    carverName: '周桂枝',
+    skillLevel: '熟练',
+    sizeTier: '大幅',
+    points: 3,
+    month: recordedAt.slice(0, 7),
+    recordedAt,
+    status: '已撤销',
+    cancelledAt: daysAgoTimestamp(4, '15:40'),
+    cancelReason: '退回在刻：甲胄边线崩口，验线未过。',
+  }
+}
+
 function withSchemaRevision<T extends object>(records: T[]): Array<T & { schemaRev: number }> {
-  return records.map((record) => ({ ...record, schemaRev: 2 }))
+  return records.map((record) => ({ ...record, schemaRev: 3 }))
+}
+
+function seedWorkPoints(): Array<WorkPointEntry & { schemaRev: number }> {
+  return withSchemaRevision([...workPoints, returnedSampleEntry()])
 }
 
 export const db = new WoodprintDatabase()
@@ -206,6 +267,7 @@ db.on('populate', () => {
     db.carvers.bulkAdd(withSchemaRevision(carvers)),
     db.batches.bulkAdd(withSchemaRevision(batches)),
     db.nodes.bulkAdd(withSchemaRevision(nodes)),
+    db.workPoints.bulkAdd(seedWorkPoints()),
   ])
 })
 
@@ -214,12 +276,13 @@ export async function initializeDatabase(): Promise<void> {
   const draftCount = await db.drafts.count()
   if (draftCount > 0) return
 
-  await db.transaction('rw', db.drafts, db.blocks, db.carvers, db.batches, db.nodes, async () => {
+  await db.transaction('rw', [db.drafts, db.blocks, db.carvers, db.batches, db.nodes, db.workPoints], async () => {
     await db.drafts.bulkPut(withSchemaRevision(drafts))
     await db.blocks.bulkPut(withSchemaRevision(blocks))
     await db.carvers.bulkPut(withSchemaRevision(carvers))
     await db.batches.bulkPut(withSchemaRevision(batches))
     await db.nodes.bulkPut(withSchemaRevision(nodes))
+    await db.workPoints.bulkPut(seedWorkPoints())
   })
 }
 

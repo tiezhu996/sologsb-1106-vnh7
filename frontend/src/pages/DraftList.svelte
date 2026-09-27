@@ -6,6 +6,8 @@
   import { draftStore } from '../stores/draftStore'
   import { blockStore } from '../stores/blockStore'
   import { useBlockOrder } from '../hooks/useBlockOrder'
+  import { SIZE_TIERS, TIER_POINTS } from '../utils/points'
+  import type { SizeTier } from '../types/block'
   import type { DraftGenre, DraftStatus, Draft } from '../types/draft'
   import type { PrintBatch } from '../types/batch'
   import { db } from '../utils/db'
@@ -22,6 +24,7 @@
   let sizeCm = $state('')
   let paperNote = $state('')
   let status = $state<DraftStatus>('起稿')
+  let sizeTier = $state<SizeTier>('中幅')
   let formMessage = $state('')
   let batches = $state<PrintBatch[]>([])
 
@@ -90,6 +93,7 @@
           colorNo: index + 1,
           woodType: index === 0 ? '黄杨' : '梨木',
           thicknessMm: index === 0 ? 18 : 20,
+          sizeTier,
           carvedBy: '',
           state: '待刻',
           defectNote: '',
@@ -104,6 +108,7 @@
     sizeCm = ''
     paperNote = ''
     status = '起稿'
+    sizeTier = '中幅'
     formMessage = ''
     showForm = false
   }
@@ -181,6 +186,12 @@
         <span>当前状态</span>
         <select data-testid="field-status" bind:value={status}>
           {#each statuses as item}<option value={item}>{item}</option>{/each}
+        </select>
+      </label>
+      <label>
+        <span>幅面档位</span>
+        <select data-testid="field-sizeTier" bind:value={sizeTier}>
+          {#each SIZE_TIERS as tier}<option value={tier}>{tier} · {TIER_POINTS[tier]} 分</option>{/each}
         </select>
       </label>
     </div>

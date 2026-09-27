@@ -5,12 +5,13 @@
   import { draftStore } from './stores/draftStore'
   import { blockStore } from './stores/blockStore'
   import { carverStore } from './stores/carverStore'
+  import { workPointStore } from './stores/workPointStore'
 
   const firstDraftPath = $derived(`/drafts/${$draftStore[0]?.id ?? 'draft-menshen-qin'}/blocks`)
   const firstBlockPath = $derived(`/blocks/${$blockStore[0]?.id ?? 'block-ms-01'}/nodes`)
 
   onMount(() => {
-    void Promise.all([draftStore.load(), blockStore.load(), carverStore.load()])
+    void Promise.all([draftStore.load(), blockStore.load(), carverStore.load(), workPointStore.load()])
   })
 </script>
 
@@ -31,6 +32,7 @@
       <a use:link href={firstBlockPath}>工序时间线</a>
       <a use:link href="/batches">印制批次</a>
       <a use:link href="/carvers">刻工档</a>
+      <a use:link href="/settlement">工分结算</a>
     </nav>
   </header>
 

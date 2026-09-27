@@ -1,17 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { link } from 'svelte-spa-router'
   import EmptyBox from '../components/common/EmptyBox.svelte'
   import StageRail from '../components/common/StageRail.svelte'
   import { blockStore } from '../stores/blockStore'
   import { carverStore } from '../stores/carverStore'
+  import { workPointStore } from '../stores/workPointStore'
   import { useCarverLoad } from '../hooks/useCarverLoad'
-  import type { CarverSpecialty, SkillLevel } from '../types/carver'
+  import type { Carver, CarverSpecialty, SkillLevel } from '../types/carver'
+  import { currentMonthKey, formatPoints, monthLabel } from '../utils/points'
   import { downloadJson } from '../utils/export'
   import { db } from '../utils/db'
 
   const specialties: CarverSpecialty[] = ['墨线', '套色', '修版']
   const levels: SkillLevel[] = ['学徒', '熟练', '师傅']
   const { activeCount: selectedActiveCount, averageDuration: selectedAverageDuration, refresh: refreshCarverLoad } = useCarverLoad('')
+  const monthPoints = workPointStore.currentMonthByCarver
+  const currentMonth = currentMonthKey()
 
   let filter = $state<CarverSpecialty | '全部'>('全部')
   let selectedCarverId = $state('')
@@ -31,9 +36,20 @@
       ? [...$blockStore].filter((block) => selectedCarver.activeBlockIds.includes(block.id) || block.carvedBy === selectedCarver.name)
       : [],
   )
+  const selectedMonthEntries = $derived(
+    selectedCarver
+      ? $workPointStore.filter(
+          (entry) => entry.month === currentMonth && entry.status === '有效' && (entry.carverId === selectedCarver.id || entry.carverName === selectedCarver.name),
+        )
+      : [],
+  )
+
+  function monthPointsOf(carver: Carver): { points: number; validCount: number } {
+    return $monthPoints[carver.id] ?? { points: 0, validCount: 0 }
+  }
 
   onMount(() => {
-    void Promise.all([blockStore.load(), carverStore.load()])
+    void Promise.all([blockStore.load(), carverStore.load(), workPointStore.load()])
   })
 
   $effect(() => {
@@ -187,6 +203,7 @@
           </div>
           <div class="carver-metrics">
             <div><span>在刻</span><strong>{carver.activeBlockIds.length}</strong><small>块</small></div>
+            <div><span>当月工分</span><strong>{formatPoints(monthPointsOf(carver).points)}</strong><small>分</small></div>
             <div><span>专长</span><strong>{carver.specialty}</strong></div>
           </div>
           <p class="piece-note">{carver.pieceworkNote}</p>
@@ -208,6 +225,25 @@
           <div><span>在刻版片</span><strong>{$selectedActiveCount}</strong></div>
           <div><span>节点平均耗时</span><strong>{$selectedAverageDuration}<small> 分钟</small></strong></div>
         </div>
+        <div class="month-points">
+          <div>
+            <span>{monthLabel(currentMonth)}工分</span>
+            <strong>{formatPoints(monthPointsOf(selectedCarver).points)}<small> 分</small></strong>
+            <small>当月有效 {monthPointsOf(selectedCarver).validCount} 笔 · 学徒按半档计</small>
+          </div>
+          <a class="button secondary" use:link href="/settlement">前往工分结算</a>
+        </div>
+        {#if selectedMonthEntries.length > 0}
+          <div class="assigned-list month-entries">
+            {#each selectedMonthEntries as entry (entry.id)}
+              <div>
+                <span>{entry.sizeTier.slice(0, 1)}</span>
+                <strong>{entry.blockName}</strong>
+                <em>{formatPoints(entry.points)} 分</em>
+              </div>
+            {/each}
+          </div>
+        {/if}
         <StageRail activeIndex={stage.active} completedCount={stage.completed} compact={true} />
         <div class="assigned-list">
           {#if selectedBlocks.length === 0}

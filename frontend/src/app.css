@@ -965,7 +965,7 @@ textarea:focus {
 
 .carver-metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
 }
 
@@ -1184,4 +1184,58 @@ textarea:focus {
 .order-buttons button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.month-points {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(47, 118, 88, 0.35);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(47, 118, 88, 0.1), rgba(255, 250, 240, 0.9));
+}
+
+.month-points > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.month-points span {
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.month-points strong {
+  font-size: 1.6rem;
+  color: var(--jade);
+}
+
+.month-points small {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.month-entries {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.settlement-table {
+  min-width: 46rem;
+}
+
+.settlement-table .voided td {
+  color: var(--ink-muted);
+  background: rgba(243, 234, 217, 0.4);
+}
+
+.settlement-table .voided td strong {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.points-strong {
+  color: var(--cinnabar);
 }
