@@ -9,11 +9,13 @@
   import { blockStore } from '../stores/blockStore'
   import { carverStore } from '../stores/carverStore'
   import { draftStore } from '../stores/draftStore'
+  import { workPointStore } from '../stores/workPointStore'
   import { useBlockOrder } from '../hooks/useBlockOrder'
   import { useCarverLoad } from '../hooks/useCarverLoad'
   import { validateColorSequence } from '../utils/seq'
+  import { SIZE_TIERS, TIER_POINTS } from '../utils/workPoints'
   import { db } from '../utils/db'
-  import type { Block } from '../types/block'
+  import type { Block, SizeTier } from '../types/block'
   import type { ProcessStage } from '../types/node'
 
   const draftId = $derived($params?.id ?? '')
@@ -34,7 +36,7 @@
   const draft = $derived($draftStore.find((item) => item.id === draftId) ?? null)
 
   onMount(() => {
-    void Promise.all([draftStore.load(), blockStore.load(), carverStore.load()])
+    void Promise.all([draftStore.load(), blockStore.load(), carverStore.load(), workPointStore.load()])
   })
 
   $effect(() => {
@@ -76,6 +78,7 @@
   async function markCarved(block: Block): Promise<void> {
     await blockStore.update(block.id, { state: '已刻成' })
     await carverStore.releaseBlock(block.id)
+    const result = await workPointStore.recordCarved(block)
     const currentBlocks = get(blockStore).filter((item) => item.draftId === draftId)
     const allCarved = currentBlocks.every((item) => item.state === '已刻成' || item.state === '已修版')
     await draftStore.update(draftId, { status: allCarved ? '可印' : '刻版中' })
@@ -91,7 +94,32 @@
       durationMin: 0,
       note: '版片验线后标记刻成。',
     })
-    lastSync = `${block.blockName}已标记刻成`
+    if (result.outcome === 'recorded' && result.entry) {
+      lastSync = `${block.blockName}已标记刻成，为${result.entry.carverName}记当月工分 ${result.entry.points} 分`
+    } else if (result.outcome === 'duplicate') {
+      lastSync = `${block.blockName}已标记刻成，当月已有一笔在账工分，不重复记`
+    } else {
+      lastSync = `${block.blockName}已标记刻成，但未找到刻工档案，工分未记`
+    }
+  }
+
+  async function returnToCarving(block: Block): Promise<void> {
+    await blockStore.update(block.id, { state: '在刻' })
+    const revoked = await workPointStore.revokeForBlock(block.id)
+    await carverStore.retrackBlock(block)
+    await draftStore.update(draftId, { status: '刻版中' })
+    lastSync = revoked
+      ? `${block.blockName}已退回在刻，那一笔工分已撤销`
+      : `${block.blockName}已退回在刻`
+  }
+
+  async function changeSizeTier(block: Block, sizeTier: SizeTier): Promise<void> {
+    if (sizeTier === block.sizeTier) return
+    await blockStore.update(block.id, { sizeTier })
+    const recalced = await workPointStore.recalcForBlock(block.id, sizeTier)
+    lastSync = recalced
+      ? `${block.blockName}幅面改为${sizeTier}，当月那笔工分已按新档位重算`
+      : `${block.blockName}幅面已改为${sizeTier}`
   }
 
   async function saveSequence(block: Block): Promise<void> {
@@ -134,8 +162,10 @@
   async function returnToStage(_index: number, stage: ProcessStage): Promise<void> {
     const block = $orderedBlocks[0]
     if (!block) return
-    if (stage === '刻版' || stage === '修版') {
-      await blockStore.update(block.id, { state: stage === '修版' ? '已修版' : '在刻' })
+    if (stage === '刻版') {
+      await returnToCarving(block)
+    } else if (stage === '修版') {
+      await blockStore.update(block.id, { state: '已修版' })
       lastSync = `已将首块版片阶段调至${stage}`
     }
   }
@@ -194,6 +224,7 @@
                 <th>色序</th>
                 <th>版片</th>
                 <th>木料 / 版厚</th>
+                <th>幅面档位</th>
                 <th>刻工指派</th>
                 <th>状态</th>
                 <th>崩口与修补</th>
@@ -226,6 +257,18 @@
                   </td>
                   <td>
                     <select
+                      data-testid={`field-sizeTier-${block.id}`}
+                      value={block.sizeTier}
+                      onchange={(event) => changeSizeTier(block, (event.currentTarget as HTMLSelectElement).value as SizeTier)}
+                    >
+                      {#each SIZE_TIERS as tier}
+                        <option value={tier}>{tier}</option>
+                      {/each}
+                    </select>
+                    <small>计 {TIER_POINTS[block.sizeTier]} 分 · 学徒半档</small>
+                  </td>
+                  <td>
+                    <select
                       data-testid={`field-carvedBy-${block.id}`}
                       value={block.carvedBy}
                       onchange={(event) => assignCarver(block, (event.currentTarget as HTMLSelectElement).value)}
@@ -240,6 +283,8 @@
                     <span class="tag state-{block.state}">{block.state}</span>
                     {#if block.state !== '已刻成' && block.state !== '已修版'}
                       <button class="mini-button strong" type="button" onclick={() => markCarved(block)}>标刻成</button>
+                    {:else}
+                      <button class="mini-button" type="button" onclick={() => returnToCarving(block)}>退回在刻</button>
                     {/if}
                   </td>
                   <td>
@@ -253,7 +298,7 @@
                   </td>
                 </tr>
                 <tr class="stage-row">
-                  <td colspan="6">
+                  <td colspan="7">
                     <StageRail
                       activeIndex={blockStateStage(block.state)}
                       completedCount={block.state === '已刻成' || block.state === '已修版' ? 5 : block.state === '在刻' ? 3 : 1}

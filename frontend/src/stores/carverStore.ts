@@ -76,6 +76,14 @@ async function releaseBlock(blockId: string): Promise<void> {
   await load()
 }
 
+async function retrackBlock(block: Block): Promise<void> {
+  if (!block.carvedBy) return
+  const carver = await db.carvers.where('name').equals(block.carvedBy).first()
+  if (!carver || carver.activeBlockIds.includes(block.id)) return
+  await db.carvers.update(carver.id, { activeBlockIds: [...carver.activeBlockIds, block.id] })
+  await load()
+}
+
 export const carverStore = {
   subscribe: carverList.subscribe,
   assignments: { subscribe: blockAssignments.subscribe },
@@ -85,4 +93,5 @@ export const carverStore = {
   update,
   assignBlock,
   releaseBlock,
+  retrackBlock,
 }

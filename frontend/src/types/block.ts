@@ -1,6 +1,7 @@
 export type BlockName = '墨线版' | '黄版' | '红版' | '绿版'
 export type WoodType = '梨木' | '黄杨'
 export type BlockState = '待刻' | '在刻' | '已刻成' | '已修版'
+export type SizeTier = '小幅' | '中幅' | '大幅'
 
 export interface Block {
   id: string
@@ -9,6 +10,7 @@ export interface Block {
   colorNo: number
   woodType: WoodType
   thicknessMm: number
+  sizeTier: SizeTier
   carvedBy: string
   state: BlockState
   defectNote: string

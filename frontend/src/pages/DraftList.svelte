@@ -90,6 +90,7 @@
           colorNo: index + 1,
           woodType: index === 0 ? '黄杨' : '梨木',
           thicknessMm: index === 0 ? 18 : 20,
+          sizeTier: '中幅',
           carvedBy: '',
           state: '待刻',
           defectNote: '',

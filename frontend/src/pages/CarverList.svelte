@@ -1,17 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { link } from 'svelte-spa-router'
   import EmptyBox from '../components/common/EmptyBox.svelte'
   import StageRail from '../components/common/StageRail.svelte'
   import { blockStore } from '../stores/blockStore'
   import { carverStore } from '../stores/carverStore'
+  import { workPointStore } from '../stores/workPointStore'
   import { useCarverLoad } from '../hooks/useCarverLoad'
   import type { CarverSpecialty, SkillLevel } from '../types/carver'
   import { downloadJson } from '../utils/export'
+  import { formatPoints, monthKey } from '../utils/workPoints'
   import { db } from '../utils/db'
 
   const specialties: CarverSpecialty[] = ['墨线', '套色', '修版']
   const levels: SkillLevel[] = ['学徒', '熟练', '师傅']
   const { activeCount: selectedActiveCount, averageDuration: selectedAverageDuration, refresh: refreshCarverLoad } = useCarverLoad('')
+  const currentMonthPoints = workPointStore.currentMonthPoints
+  const currentMonth = monthKey()
 
   let filter = $state<CarverSpecialty | '全部'>('全部')
   let selectedCarverId = $state('')
@@ -31,9 +36,16 @@
       ? [...$blockStore].filter((block) => selectedCarver.activeBlockIds.includes(block.id) || block.carvedBy === selectedCarver.name)
       : [],
   )
+  const selectedMonthEntries = $derived(
+    selectedCarver
+      ? $workPointStore.filter(
+          (entry) => entry.carverId === selectedCarver.id && entry.month === currentMonth && entry.status === '在账',
+        )
+      : [],
+  )
 
   onMount(() => {
-    void Promise.all([blockStore.load(), carverStore.load()])
+    void Promise.all([blockStore.load(), carverStore.load(), workPointStore.load()])
   })
 
   $effect(() => {
@@ -82,12 +94,13 @@
   }
 
   async function exportCarvers(): Promise<void> {
-    const [blocks, nodes] = await Promise.all([db.blocks.toArray(), db.nodes.toArray()])
+    const [blocks, nodes, workPoints] = await Promise.all([db.blocks.toArray(), db.nodes.toArray(), db.workPoints.toArray()])
     downloadJson('刻工与版片分布.json', {
       exportedAt: new Date().toISOString(),
       carvers: $carverStore,
       blocks,
       nodes,
+      workPoints,
     })
   }
 </script>
@@ -187,6 +200,7 @@
           </div>
           <div class="carver-metrics">
             <div><span>在刻</span><strong>{carver.activeBlockIds.length}</strong><small>块</small></div>
+            <div><span>当月工分</span><strong>{formatPoints($currentMonthPoints[carver.id] ?? 0)}</strong><small>分</small></div>
             <div><span>专长</span><strong>{carver.specialty}</strong></div>
           </div>
           <p class="piece-note">{carver.pieceworkNote}</p>
@@ -221,6 +235,27 @@
               </div>
             {/each}
           {/if}
+        </div>
+        <div class="points-block">
+          <div class="points-head">
+            <span>当月工分</span>
+            <strong>{formatPoints($currentMonthPoints[selectedCarver.id] ?? 0)}</strong>
+            <small>分{selectedCarver.skillLevel === '学徒' ? ' · 学徒半档' : ''}</small>
+          </div>
+          {#if selectedMonthEntries.length === 0}
+            <p class="gentle-copy">当月还没有在账工分，版片标刻成后自动按档位记入。</p>
+          {:else}
+            <ul class="points-list">
+              {#each selectedMonthEntries as entry (entry.id)}
+                <li>
+                  <strong>{entry.blockName}</strong>
+                  <em>{entry.sizeTier}</em>
+                  <span>{formatPoints(entry.points)} 分</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <a class="button ghost full" use:link href="/settlement">前往工分结算</a>
         </div>
       </aside>
     {/if}
